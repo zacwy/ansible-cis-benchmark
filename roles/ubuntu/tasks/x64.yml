@@ -1,0 +1,394 @@
+---
+- name: APT upgrade installed packages
+  apt:
+    upgrade: safe
+    update_cache: true
+  notify: restart wazuh-agent
+
+- name: APT install (other than aide)
+  apt:
+    pkg:
+      - aide
+      - auditd
+      - audispd-plugins
+      - nfs-server
+      - nftables
+    state: latest
+    update_cache: true
+  notify: restart wazuh-agent
+
+- name: APT install aide (Seperated for handler to init of aide)
+  apt:
+    pkg:
+      - aide
+    state: latest
+    update_cache: true
+  notify: 
+    - init aide
+    - restart wazuh-agent
+
+- name: APT uninstall unused program
+  apt:
+    pkg:
+      - telnet
+    state: absent
+    update_cache: true
+  notify: restart wazuh-agent
+
+- name: Enable Services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: True
+  with_items:
+    - ufw
+    - nftables
+  notify: restart wazuh-agent
+
+- name: Disable unused services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: False
+  with_items:
+    - nfs-server
+    - rpcbind
+    - rsync
+  notify: restart wazuh-agent
+
+- name: Ensure there is a directory for AIDE
+  file:
+    path: /var/lib/aide/
+    state: directory
+    mode: "0600"
+  notify: restart wazuh-agent
+
+- name: Adding regular cron AIDE checks
+  cron:
+    name: "{{ item.name }}"
+    special_time: daily
+    job: "{{ item.job }}"
+    user: root
+  with_items:
+    - { name: "AIDE checks", job: "/usr/bin/aide.wrapper --config /etc/aide/aide.conf --check"}
+
+- name: Removing support for unused FS & services
+  lineinfile:
+    path: /etc/modprobe.d/cis.conf
+    line: "install {{ item }} /bin/true"
+    create: yes
+  with_items:
+    - freevxfs
+    - jffs2
+    - hfs
+    - hfsplus
+    - squashfs # built into ubuntu, will be ignored by modprobe
+    - udf
+    - vfat # built into ubuntu, will be ignored by modprobe
+    - usb_storage
+    - dccp
+    - sctp
+    - rds
+    - tipc
+  notify: restart wazuh-agent
+
+- name: Configure /tmp
+  mount:
+    path: /tmp
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,rw,nosuid,nodev,noexec
+    state: mounted
+  notify: restart wazuh-agent
+
+- name: Setting login warning banner
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/"
+  with_items:
+    - issue
+    - issue.net
+  notify: restart wazuh-agent
+
+- name: Change Sudo to use pty
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ item }}"
+  with_items:
+    - Defaults logfile="/var/log/sudo.log"
+    - Defaults use_pty
+  notify: restart wazuh-agent
+
+# - name: Configure UFW
+#   ufw:
+#     state: enabled
+#   notify: restart wazuh-agent
+
+# - name: Configure UFW policy
+#   ufw:
+#     policy: deny
+#     direction: "{{ item }}" 
+#   with_items:
+#     - incoming
+#     - routed
+
+# - name: Configure UFW lo policy
+#   ufw:
+#     policy: allow
+#     direction: "{{ item }}" 
+#     interface: lo
+#   with_items:
+#     - incoming
+#     - outgoing
+
+# - name: Configure UFW rules
+#   ufw:
+#     rule: "{{ item.rule }}"
+#     direction: "{{ item.direction }}"
+#     src: "{{ item.src }}"
+#   with_items:
+#     - {rule: "deny", direction: "in", src: "127.0.0.0/8"}
+#     - {rule: "deny", direction: "in", src: "::1"}
+#   notify: restart wazuh-agent
+
+# - name: Drop all IPv6 Traffic
+#   iptables:
+#     ip_version: ipv6
+#     chain: "{{ item }}"
+#     policy: DROP
+#   with_items:
+#     - INPUT
+#     - OUTPUT
+#     - FORWARD
+
+- name: Setting sysctl configs
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+  with_items:
+    - { name: "net.ipv6.conf.default.accept_ra", value: "0"}
+    - { name: "net.ipv6.conf.all.accept_ra", value: "0"}
+    - { name: "net.ipv4.tcp_syncookies", value: "1"}
+    - { name: "net.ipv4.conf.all.rp_filter", value: "1"}
+    - { name: "net.ipv4.conf.default.rp_filter", value: "1"}
+    - { name: "net.ipv4.icmp_ignore_bogus_error_responses", value: "1"}
+    - { name: "net.ipv4.icmp_echo_ignore_broadcasts", value: "1"}
+    - { name: "net.ipv4.conf.all.log_martians", value: "1"}
+    - { name: "net.ipv4.conf.default.log_martians", value: "1"}
+    - { name: "net.ipv4.conf.all.secure_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.secure_redirects", value: "0"}
+    - { name: "net.ipv4.conf.all.send_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.send_redirects", value: "0"}
+    - { name: "net.ipv4.conf.all.accept_source_route", value: "0"}
+    - { name: "net.ipv4.conf.default.accept_source_route", value: "0"}
+    - { name: "net.ipv6.conf.all.accept_source_route", value: "0"}
+    - { name: "net.ipv6.conf.default.accept_source_route", value: "0"}
+    - { name: "net.ipv4.conf.all.accept_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.accept_redirects", value: "0"}
+    - { name: "net.ipv6.conf.all.accept_redirects", value: "0"}
+    - { name: "net.ipv6.conf.default.accept_redirects", value: "0"}
+    - { name: "kernel.randomize_va_space", value: "2"}
+    - { name: "fs.suid_dumpable", value: "0"}
+  notify: restart wazuh-agent
+
+- name: Delete cron/at deny to make cron a whitelist only
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+    - { path: "/etc/at.deny" }
+    - { path: "/etc/cron.deny" }
+  notify: restart wazuh-agent
+
+- name: Create and Secure MOTD & Cron permissions
+  file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    modification_time: preserve
+    access_time: preserve
+    state: touch
+  with_items:
+    - { path: "/etc/motd", mode: "0644"}
+    - { path: "/etc/at.allow", mode: "0600"}
+    - { path: "/etc/cron.allow", mode: "0600"}
+  notify: restart wazuh-agent
+
+- name: Configure root access to cron
+  lineinfile:
+    path: "{{ item.path }}"
+    line: "{{ item.user }}"
+  with_items:
+    - {path: "/etc/at.allow", user: "root"}
+    - {path: "/etc/cron.allow", user: "root"}
+
+- name: Set owner and permission for impt files
+  file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: '{{ item.mode }}'
+  with_items:
+    - { path: "/etc/ssh/sshd_config", mode: "0600" }
+    - { path: "/etc/passwd-", mode: "u-x,go-rwx"}
+    - { path: "/etc/group-", mode: "u-x,go-rwx"}
+    - { path: "/etc/crontab", mode: "go-rwx"}
+    - { path: "/etc/cron.hourly", mode: "go-rwx"}
+    - { path: "/etc/cron.daily", mode: "go-rwx"}
+    - { path: "/etc/cron.weekly", mode: "go-rwx"}
+    - { path: "/etc/cron.monthly", mode: "go-rwx"}
+    - { path: "/var/log", mode: "g-w,o-rwx"}
+    - { path: "/etc/cron.d", mode: "0600"}
+    - { path: "/boot/grub/grub.cfg", mode: "og-rwx"}
+  notify: restart wazuh-agent
+
+- name: Set permission for var log files
+  file:
+    path: "/var/log"
+    mode: 'g-w,o-rwx'
+    recurse: yes
+  notify: restart wazuh-agent
+
+- name: Set hard limit on core dumps
+  lineinfile:
+    path: /etc/security/limits.conf
+    line: "{{ item }}"
+  with_items:
+    - "* hard core 0"
+  notify: restart wazuh-agent
+  
+- name: Configure auditd
+  lineinfile:
+    path: /etc/audit/auditd.conf
+    line: "{{ item }}"
+  with_items:
+    - max_log_file_action = keep_logs
+    - space_left_action = email
+    - action_mail_acct = root
+    - admin_space_left_action = halt
+  notify: restart wazuh-agent
+
+- name: Configure auditd rules
+  lineinfile:
+    path: /etc/audit/rules.d/cis.rules
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - -w /etc/apparmor/ -p wa -k MAC-policy
+    - -w /etc/apparmor.d/ -p wa -k MAC-policy
+    - -w /etc/group -p wa -k identity
+    - -w /etc/passwd -p wa -k identity
+    - -w /etc/gshadow -p wa -k identity
+    - -w /etc/shadow -p wa -k identity
+    - -w /etc/security/opasswd -p wa -k identity
+    - -w /var/run/utmp -p wa -k session
+    - -w /var/log/wtmp -p wa -k logins
+    - -w /var/log/btmp -p wa -k logins
+    - -w /etc/sudoers -p wa -k scope
+    - -w /etc/sudoers.d/ -p wa -k scope
+    - -w /var/log/faillog -p wa -k logins
+    - -w /var/log/lastlog -p wa -k logins
+    - -w /var/log/tallylog -p wa -k logins
+    - -a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+    - -a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+    - -a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k access
+    - -a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+    - -a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k access
+    - -a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+    - -a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k mounts
+    - -a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+    - -a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
+    - -w /var/log/sudo.log -p wa -k actions
+    - -w /sbin/insmod -p x -k modules
+    - -w /sbin/rmmod -p x -k modules
+    - -w /sbin/modprobe -p x -k modules
+    - -a always,exit -F arch=b64 -S init_module -S delete_module -k modules
+    - -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+    - -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+    - -a always,exit -F arch=b64 -S clock_settime -k time-change -a always,exit -F arch=b32 -S clock_settime -k time-change
+    - -w /etc/localtime -p wa -k time-change
+    - -a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale
+    - -a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+    - -w /etc/issue -p wa -k system-locale 
+    - -w /etc/issue.net -p wa -k system-locale
+    - -w /etc/hosts -p wa -k system-locale
+    - -w /etc/network -p wa -k system-locale
+  notify: restart wazuh-agent
+
+- name: Make auditd config immutable
+  lineinfile:
+    path: /etc/audit/rules.d/99-finalize.rules
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - -e 2
+  notify: restart wazuh-agent
+
+- name: Configure journald
+  lineinfile:
+    path: "/etc/systemd/journald.conf"
+    line: "{{ item }}"
+  with_items:
+    - ForwardToSyslog=yes
+    - Compress=yes
+    - Storage=persistent
+  notify: restart wazuh-agent
+
+- name: Configure sshd config
+  lineinfile:
+    path: "/etc/ssh/sshd_config"
+    line: "{{ item }}"
+  with_items:
+    - MaxAuthTries 4
+    - PermitRootLogin no
+    - MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+    - ClientAliveInterval 300
+    - ClientAliveCountMax 0
+    - LoginGraceTime 60
+    - Banner /etc/issue.net
+    - maxstartups 10:30:60
+  notify:
+    - restart sshd
+    - restart wazuh-agent
+
+- name: Configure login defs
+  lineinfile:
+    path: "/etc/login.defs"
+    regexp: "{{ item.regex }}"
+    line: "{{ item.line }}"
+  with_items:
+    - {regex: "^PASS_MIN_DAYS", line: "PASS_MIN_DAYS 7" }
+    - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 365" }
+  notify: restart wazuh-agent
+
+- name: Configure grub to enable audit
+  lineinfile:
+    path: "/etc/default/grub"
+    regexp: "{{ item.regex }}"
+    line: "{{ item.line }}"
+  with_items:
+    - {regex: "^GRUB_CMDLINE_LINUX=", line: 'GRUB_CMDLINE_LINUX="audit=1"' }
+  notify: 
+    - restart wazuh-agent
+    - update grub
+
+- name: Configure logrotate
+  lineinfile:
+    path: "/etc/logrotate.conf"
+    regexp: "^create"
+    line: "create 0640 root utmp"
+  notify: 
+    - restart wazuh-agent
+
+# - name: configure pam
+#   lineinfile:
+#     path: /etc/pam.d/common-auth
+#     line: "{{ item }}"
+#   with_items:
+#     - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+#   notify: restart wazuh-agent

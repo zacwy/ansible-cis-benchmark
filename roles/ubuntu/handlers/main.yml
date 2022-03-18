@@ -1,0 +1,17 @@
+---
+- name: restart wazuh-agent
+  service: 
+    name: wazuh-agent
+    state: restarted 
+
+- name: init aide
+  command: aideinit
+
+- name: update grub
+  command: update-grub
+
+- name: restart ssh
+  systemd:
+    name: ssh
+    state: restarted
+  notify: restart wazuh-agent

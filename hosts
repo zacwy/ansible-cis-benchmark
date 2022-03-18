@@ -1,0 +1,10 @@
+
+[manager]
+oci64-2 ansible_host=10.0.0.165 ansible_user=ansible_slave ansible_os_arch=x64
+
+[agent]
+oci64-1 ansible_host=10.0.0.96 ansible_user=ansible_slave ansible_os_arch=x64
+
+[ubuntu]
+oci64-1
+oci64-2
