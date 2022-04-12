@@ -214,62 +214,62 @@
     - { name: "fs.suid_dumpable", value: "0"}
   notify: restart wazuh-agent
 
-# - name: Delete cron/at deny to make cron a whitelist only
-#   file:
-#     path: "{{ item.path }}"
-#     state: absent
-#   with_items:
-#     - { path: "/etc/at.deny" }
-#     - { path: "/etc/cron.deny" }
-#   notify: restart wazuh-agent
+- name: Delete cron/at deny to make cron a whitelist only
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+    - { path: "/etc/at.deny" }
+    - { path: "/etc/cron.deny" }
+  notify: restart wazuh-agent
 
-# - name: Create and Secure MOTD & Cron permissions
-#   file:
-#     path: "{{ item.path }}"
-#     mode: "{{ item.mode }}"
-#     modification_time: preserve
-#     access_time: preserve
-#     state: touch
-#   with_items:
-#     - { path: "/etc/motd", mode: "0644"}
-#     - { path: "/etc/at.allow", mode: "0600"}
-#     - { path: "/etc/cron.allow", mode: "0600"}
-#   notify: restart wazuh-agent
+- name: Create and Secure MOTD & Cron permissions
+  file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    modification_time: preserve
+    access_time: preserve
+    state: touch
+  with_items:
+    - { path: "/etc/at.allow", mode: "0600"}
+    - { path: "/etc/cron.allow", mode: "0600"}
+  notify: restart wazuh-agent
 
-# - name: Configure root access to cron
-#   lineinfile:
-#     path: "{{ item.path }}"
-#     line: "{{ item.user }}"
-#   with_items:
-#     - {path: "/etc/at.allow", user: "root"}
-#     - {path: "/etc/cron.allow", user: "root"}
+- name: Configure root access to cron
+  lineinfile:
+    path: "{{ item.path }}"
+    line: "{{ item.user }}"
+  with_items:
+    - {path: "/etc/at.allow", user: "root"}
+    - {path: "/etc/cron.allow", user: "root"}
 
-# - name: Set owner and permission for impt files
-#   file:
-#     path: "{{ item.path }}"
-#     owner: root
-#     group: root
-#     mode: '{{ item.mode }}'
-#   with_items:
-#     - { path: "/etc/ssh/sshd_config", mode: "0600" }
-#     - { path: "/etc/passwd-", mode: "u-x,go-rwx"}
-#     - { path: "/etc/group-", mode: "u-x,go-rwx"}
-#     - { path: "/etc/crontab", mode: "go-rwx"}
-#     - { path: "/etc/cron.hourly", mode: "go-rwx"}
-#     - { path: "/etc/cron.daily", mode: "go-rwx"}
-#     - { path: "/etc/cron.weekly", mode: "go-rwx"}
-#     - { path: "/etc/cron.monthly", mode: "go-rwx"}
-#     - { path: "/var/log", mode: "g-w,o-rwx"}
-#     - { path: "/etc/cron.d", mode: "0600"}
-#     - { path: "/boot/grub/grub.cfg", mode: "og-rwx"}
-#   notify: restart wazuh-agent
+- name: Set owner and permission for impt files
+  file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: '{{ item.mode }}'
+  with_items:
+    # - { path: "/etc/ssh/sshd_config", mode: "0600" }
+    # - { path: "/etc/passwd-", mode: "u-x,go-rwx"}
+    # - { path: "/etc/group-", mode: "u-x,go-rwx"}
+    - { path: "/etc/crontab", mode: "go-rwx"}
+    - { path: "/etc/cron.hourly", mode: "go-rwx"}
+    - { path: "/etc/cron.daily", mode: "go-rwx"}
+    - { path: "/etc/cron.weekly", mode: "go-rwx"}
+    - { path: "/etc/cron.monthly", mode: "go-rwx"}
+    - { path: "/boot/grub2/grub.cfg", mode: "og-rwx"}
+  notify: restart wazuh-agent
 
-# - name: Set permission for var log files
-#   file:
-#     path: "/var/log"
-#     mode: 'g-w,o-rwx'
-#     recurse: yes
-#   notify: restart wazuh-agent
+- name: Set permission for var log files
+  file:
+    path: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+    recurse: yes
+  with_items:
+    - { path: "/var/log", mode: "g-wx,o-rwx"}
+    - { path: "/etc/cron.d", mode: "go-rwx"}
+  notify: restart wazuh-agent
 
 - name: Set hard limit on core dumps
   lineinfile:
