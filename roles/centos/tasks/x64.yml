@@ -8,10 +8,9 @@
 - name: Yum install (other than aide)
   yum:
     name:
-      # - auditd
       # - audispd-plugins
       # - nfs-server
-      # - nftables
+      - nftables
       - ntp
     state: "latest"
   notify: restart wazuh-agent
@@ -33,15 +32,14 @@
     state: absent
   notify: restart wazuh-agent
 
-# - name: Enable Services
-#   systemd:
-#     name: "{{ item }}"
-#     state: started
-#     enabled: True
-#   with_items:
-#     - ufw
-#     - nftables
-#   notify: restart wazuh-agent
+- name: Enable Services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: True
+  with_items:
+    - nftables
+  notify: restart wazuh-agent
 
 # - name: Disable unused services
 #   systemd:
@@ -273,16 +271,17 @@
     - "* hard core 0"
   notify: restart wazuh-agent
   
-# - name: Configure auditd
-#   lineinfile:
-#     path: /etc/audit/auditd.conf
-#     line: "{{ item }}"
-#   with_items:
-#     - max_log_file_action = keep_logs
-#     - space_left_action = email
-#     - action_mail_acct = root
-#     - admin_space_left_action = halt
-#   notify: restart wazuh-agent
+- name: Configure auditd
+  lineinfile:
+    path: /etc/audit/auditd.conf
+    line: "{{ item.line }}"
+    regex: "{{ item.line }}"
+  with_items:
+    - {regex: "^max_log_file_action", line: "max_log_file_action = keep_logs" }
+    - {regex: "^space_left_action", line: "space_left_action = email" }
+    - {regex: "^action_mail_acct", line: "action_mail_acct = root" }
+    - {regex: "^admin_space_left_action", line: "admin_space_left_action = halt" }
+  notify: restart wazuh-agent
 
 # - name: Configure auditd rules
 #   lineinfile:
@@ -388,7 +387,7 @@
     regexp: "{{ item.regex }}"
     line: "{{ item.line }}"
   with_items:
-    - {regex: "^GRUB_CMDLINE_LINUX=", line: 'GRUB_CMDLINE_LINUX="ipv6.disable=1"' }
+    - {regex: "^GRUB_CMDLINE_LINUX=", line: 'GRUB_CMDLINE_LINUX="ipv6.disable=1 audit=1 audit_backlog_limit=8192"' }
   notify: 
     - restart wazuh-agent
     - update grub
