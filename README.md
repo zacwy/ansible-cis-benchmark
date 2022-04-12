@@ -4,9 +4,8 @@ An ansible playbook to automate for compliance of a linux system to adhere to [C
 This script is written against [Wazuh](https://wazuh.com/) Security Configuration Assessment 's CIS Benchmark, policy hash a40e069a8c13f01df168a1c7a980a66a93dc64afb1346b53573f94de28dd49a4
 
 ## Development Environment
-VPS : Oracle Cloud Infrastructure
-
-OS : Ubuntu 20.04
+Ubuntu : 20.04
+Centos : 7.9
 
 Ansible : 2.5
 
