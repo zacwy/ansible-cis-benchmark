@@ -10,7 +10,7 @@
 - name: update grub
   command: update-grub
 
-- name: restart ssh
+- name: restart sshd
   systemd:
     name: ssh
     state: restarted
