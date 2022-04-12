@@ -292,6 +292,11 @@
     - {regex: "^admin_space_left_action", line: "admin_space_left_action = halt" }
   notify: restart wazuh-agent
 
+- name: Password Expiry
+  command: useradd -D -f 30 # coomand is idempotent, placeholder till a replacement call with module is possible
+  changed_when: false
+
+
 # - name: Configure auditd rules
 #   lineinfile:
 #     path: /etc/audit/rules.d/cis.rules
@@ -390,15 +395,15 @@
     - restart sshd
     - restart wazuh-agent
 
-# - name: Configure login defs
-#   lineinfile:
-#     path: "/etc/login.defs"
-#     regexp: "{{ item.regex }}"
-#     line: "{{ item.line }}"
-#   with_items:
-#     - {regex: "^PASS_MIN_DAYS", line: "PASS_MIN_DAYS 7" }
-#     - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 365" }
-#   notify: restart wazuh-agent
+- name: Configure login defs
+  lineinfile:
+    path: "/etc/login.defs"
+    regexp: "{{ item.regex }}"
+    line: "{{ item.line }}"
+  with_items:
+    - {regex: "^PASS_MIN_DAYS", line: "PASS_MIN_DAYS 1" }
+    # - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 365" }
+  notify: restart wazuh-agent
 
 - name: Configure grub 
   lineinfile:
@@ -419,10 +424,24 @@
 #   notify: 
 #     - restart wazuh-agent
 
-# # - name: configure pam
-# #   lineinfile:
-# #     path: /etc/pam.d/common-auth
-# #     line: "{{ item }}"
-# #   with_items:
-# #     - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
-# #   notify: restart wazuh-agent
+- name: configure pam - system auth
+  lineinfile:
+    path:  /etc/pam.d/system-auth
+    line: "{{ item.line }}"
+    regex: "{{ item.regex }}"
+  with_items:
+    - {regex: "^password sufficient pam_unix.so remember", line: "password sufficient pam_unix.so remember=5"}
+    - {regex: "^password required pam_pwhistory.so remember", line: "password required pam_pwhistory.so remember=5"}
+    # - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+  notify: restart wazuh-agent
+
+- name: configure pam - password auth
+  lineinfile:
+    path:  /etc/pam.d/password-auth 
+    line: "{{ item.line }}"
+    regex: "{{ item.regex }}"
+  with_items:
+    - {regex: "^password sufficient pam_unix.so remember", line: "password sufficient pam_unix.so remember=5"}
+    - {regex: "^password required pam_pwhistory.so remember", line: "password required pam_pwhistory.so remember=5"}
+    # - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+  notify: restart wazuh-agent
