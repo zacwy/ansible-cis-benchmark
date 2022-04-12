@@ -5,35 +5,33 @@
     state: "latest"
   notify: restart wazuh-agent
 
-# - name: APT install (other than aide)
-#   apt:
-#     pkg:
-#       - aide
-#       - auditd
-#       - audispd-plugins
-#       - nfs-server
-#       - nftables
-#     state: latest
-#     update_cache: true
-#   notify: restart wazuh-agent
+- name: Yum install (other than aide)
+  yum:
+    name:
+      # - auditd
+      # - audispd-plugins
+      # - nfs-server
+      # - nftables
+      - ntp
+    state: "latest"
+  notify: restart wazuh-agent
 
-# - name: APT install aide (Seperated for handler to init of aide)
-#   apt:
-#     pkg:
-#       - aide
-#     state: latest
-#     update_cache: true
-#   notify: 
-#     - init aide
-#     - restart wazuh-agent
+- name: Yum install aide (Seperated for handler to init of aide)
+  yum:
+    name:
+      - aide
+    state: "latest"
+  notify: 
+    - init aide
+    - restart wazuh-agent
 
-# - name: APT uninstall unused program
-#   apt:
-#     pkg:
-#       - telnet
-#     state: absent
-#     update_cache: true
-#   notify: restart wazuh-agent
+- name: Yum uninstall unused program
+  yum:
+    name:
+      - avahi
+      - avahi-autoipd
+    state: absent
+  notify: restart wazuh-agent
 
 # - name: Enable Services
 #   systemd:
@@ -63,14 +61,14 @@
 #     mode: "0600"
 #   notify: restart wazuh-agent
 
-# - name: Adding regular cron AIDE checks
-#   cron:
-#     name: "{{ item.name }}"
-#     special_time: daily
-#     job: "{{ item.job }}"
-#     user: root
-#   with_items:
-#     - { name: "AIDE checks", job: "/usr/bin/aide.wrapper --config /etc/aide/aide.conf --check"}
+- name: Adding regular cron AIDE checks
+  cron:
+    name: "{{ item.name }}"
+    special_time: daily
+    job: "{{ item.job }}"
+    user: root
+  with_items:
+    - { name: "AIDE checks", job: "/usr/sbin/aide --check"}
 
 - name: Removing support for unused FS & services
   lineinfile:
@@ -87,32 +85,53 @@
     - sctp
   notify: restart wazuh-agent
 
-# - name: Configure /tmp
-#   mount:
-#     path: /tmp
-#     src: tmpfs
-#     fstype: tmpfs
-#     opts: defaults,rw,nosuid,nodev,noexec
-#     state: mounted
-#   notify: restart wazuh-agent
+- name: Configure /tmp
+  mount:
+    path: /tmp
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,rw,nosuid,nodev,noexec
+    state: mounted
+  notify: restart wazuh-agent
 
-# - name: Setting login warning banner
-#   copy:
-#     src: "{{ item }}"
-#     dest: "/etc/"
-#   with_items:
-#     - issue
-#     - issue.net
-#   notify: restart wazuh-agent
+- name: Configure /dev/shm
+  mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,noexec,nodev,nosuid,seclabel
+    state: mounted
+  notify: restart wazuh-agent
 
-# - name: Change Sudo to use pty
-#   lineinfile:
-#     path: /etc/sudoers
-#     line: "{{ item }}"
-#   with_items:
-#     - Defaults logfile="/var/log/sudo.log"
-#     - Defaults use_pty
-#   notify: restart wazuh-agent
+- name: Setting login warning banner
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/"
+  with_items:
+    - issue
+    - issue.net
+  notify: restart wazuh-agent
+
+- name: Change Sudo to use pty
+  lineinfile:
+    path: /etc/sudoers.d/cis.conf
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - Defaults logfile="/var/log/sudo.log"
+    - Defaults use_pty
+  notify: restart wazuh-agent
+
+- name: Configure Postfix
+  lineinfile:
+    path: "/etc/postfix/main.cf"
+    regexp: "{{ item.regex }}"
+    line: "{{ item.line }}"
+  with_items:
+    - {regex: "^inet_interfaces", line: "inet_interfaces = loopback-only" }
+  notify: 
+    - restart postfix
+    - restart wazuh-agent
 
 # # - name: Configure UFW
 # #   ufw:
@@ -156,36 +175,37 @@
 # #     - OUTPUT
 # #     - FORWARD
 
-# - name: Setting sysctl configs
-#   sysctl:
-#     name: "{{ item.name }}"
-#     value: "{{ item.value }}"
-#     state: present
-#   with_items:
-#     - { name: "net.ipv6.conf.default.accept_ra", value: "0"}
-#     - { name: "net.ipv6.conf.all.accept_ra", value: "0"}
-#     - { name: "net.ipv4.tcp_syncookies", value: "1"}
-#     - { name: "net.ipv4.conf.all.rp_filter", value: "1"}
-#     - { name: "net.ipv4.conf.default.rp_filter", value: "1"}
-#     - { name: "net.ipv4.icmp_ignore_bogus_error_responses", value: "1"}
-#     - { name: "net.ipv4.icmp_echo_ignore_broadcasts", value: "1"}
-#     - { name: "net.ipv4.conf.all.log_martians", value: "1"}
-#     - { name: "net.ipv4.conf.default.log_martians", value: "1"}
-#     - { name: "net.ipv4.conf.all.secure_redirects", value: "0"}
-#     - { name: "net.ipv4.conf.default.secure_redirects", value: "0"}
-#     - { name: "net.ipv4.conf.all.send_redirects", value: "0"}
-#     - { name: "net.ipv4.conf.default.send_redirects", value: "0"}
-#     - { name: "net.ipv4.conf.all.accept_source_route", value: "0"}
-#     - { name: "net.ipv4.conf.default.accept_source_route", value: "0"}
-#     - { name: "net.ipv6.conf.all.accept_source_route", value: "0"}
-#     - { name: "net.ipv6.conf.default.accept_source_route", value: "0"}
-#     - { name: "net.ipv4.conf.all.accept_redirects", value: "0"}
-#     - { name: "net.ipv4.conf.default.accept_redirects", value: "0"}
-#     - { name: "net.ipv6.conf.all.accept_redirects", value: "0"}
-#     - { name: "net.ipv6.conf.default.accept_redirects", value: "0"}
-#     - { name: "kernel.randomize_va_space", value: "2"}
-#     - { name: "fs.suid_dumpable", value: "0"}
-#   notify: restart wazuh-agent
+- name: Setting sysctl configs
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/cis.conf
+    state: present
+  with_items:
+    - { name: "net.ipv4.tcp_syncookies", value: "1"}
+    - { name: "net.ipv4.conf.all.rp_filter", value: "1"}
+    - { name: "net.ipv4.conf.default.rp_filter", value: "1"}
+    - { name: "net.ipv4.icmp_ignore_bogus_error_responses", value: "1"}
+    - { name: "net.ipv4.icmp_echo_ignore_broadcasts", value: "1"}
+    - { name: "net.ipv4.conf.all.log_martians", value: "1"}
+    - { name: "net.ipv4.conf.default.log_martians", value: "1"}
+    - { name: "net.ipv4.conf.all.accept_source_route", value: "0"}
+    - { name: "net.ipv4.conf.default.accept_source_route", value: "0"}
+    - { name: "net.ipv6.conf.all.accept_source_route", value: "0"}
+    - { name: "net.ipv6.conf.default.accept_source_route", value: "0"}
+    - { name: "net.ipv4.conf.all.secure_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.secure_redirects", value: "0"}
+    - { name: "net.ipv4.conf.all.accept_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.accept_redirects", value: "0"}
+    - { name: "net.ipv4.conf.default.send_redirects", value: "0"}
+    - { name: "net.ipv4.conf.all.send_redirects", value: "0"}
+    - { name: "net.ipv6.conf.all.accept_ra", value: "0"}
+    - { name: "net.ipv6.conf.default.accept_ra", value: "0"}
+    - { name: "net.ipv6.conf.all.disable_ipv6", value: "1"}
+    - { name: "net.ipv6.conf.default.disable_ipv6", value: "1"}
+    - { name: "kernel.randomize_va_space", value: "2"}
+    - { name: "fs.suid_dumpable", value: "0"}
+  notify: restart wazuh-agent
 
 # - name: Delete cron/at deny to make cron a whitelist only
 #   file:
@@ -244,13 +264,14 @@
 #     recurse: yes
 #   notify: restart wazuh-agent
 
-# - name: Set hard limit on core dumps
-#   lineinfile:
-#     path: /etc/security/limits.conf
-#     line: "{{ item }}"
-#   with_items:
-#     - "* hard core 0"
-#   notify: restart wazuh-agent
+- name: Set hard limit on core dumps
+  lineinfile:
+    path: /etc/security/limits.d/cis.conf
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - "* hard core 0"
+  notify: restart wazuh-agent
   
 # - name: Configure auditd
 #   lineinfile:
@@ -361,16 +382,16 @@
 #     - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 365" }
 #   notify: restart wazuh-agent
 
-# - name: Configure grub to enable audit
-#   lineinfile:
-#     path: "/etc/default/grub"
-#     regexp: "{{ item.regex }}"
-#     line: "{{ item.line }}"
-#   with_items:
-#     - {regex: "^GRUB_CMDLINE_LINUX=", line: 'GRUB_CMDLINE_LINUX="audit=1"' }
-#   notify: 
-#     - restart wazuh-agent
-#     - update grub
+- name: Configure grub 
+  lineinfile:
+    path: "/etc/default/grub"
+    regexp: "{{ item.regex }}"
+    line: "{{ item.line }}"
+  with_items:
+    - {regex: "^GRUB_CMDLINE_LINUX=", line: 'GRUB_CMDLINE_LINUX="ipv6.disable=1"' }
+  notify: 
+    - restart wazuh-agent
+    - update grub
 
 # - name: Configure logrotate
 #   lineinfile:

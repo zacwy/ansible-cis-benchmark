@@ -4,13 +4,18 @@
     name: wazuh-agent
     state: restarted 
 
+- name: restart postfix
+  service: 
+    name: postfix
+    state: restarted 
+
 - name: init aide
-  command: aideinit
+  command: aide --init
 
 - name: update grub
-  command: update-grub
+  command: grub2-mkconfig –o /boot/grub2/grub.cfg
 
-- name: restart ssh
+- name: restart sshd
   systemd:
     name: ssh
     state: restarted
