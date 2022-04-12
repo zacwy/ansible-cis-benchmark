@@ -131,6 +131,15 @@
     - restart postfix
     - restart wazuh-agent
 
+- name: Configure Rsyslog
+  lineinfile:
+    path: /etc/rsyslog.d/cis.conf
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - "$FileCreateMode 0600"
+  notify: restart wazuh-agent
+
 # # - name: Configure UFW
 # #   ufw:
 # #     state: enabled
@@ -344,32 +353,43 @@
 #     - -e 2
 #   notify: restart wazuh-agent
 
-# - name: Configure journald
-#   lineinfile:
-#     path: "/etc/systemd/journald.conf"
-#     line: "{{ item }}"
-#   with_items:
-#     - ForwardToSyslog=yes
-#     - Compress=yes
-#     - Storage=persistent
-#   notify: restart wazuh-agent
+- name: Configure journald
+  lineinfile:
+    path: "/etc/systemd/journald.conf"
+    line: "{{ item }}"
+  with_items:
+    - ForwardToSyslog=yes
+    # - Compress=yes
+    # - Storage=persistent
+  notify: restart wazuh-agent
 
-# - name: Configure sshd config
-#   lineinfile:
-#     path: "/etc/ssh/sshd_config"
-#     line: "{{ item }}"
-#   with_items:
-#     - MaxAuthTries 4
-#     - PermitRootLogin no
-#     - MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
-#     - ClientAliveInterval 300
-#     - ClientAliveCountMax 0
-#     - LoginGraceTime 60
-#     - Banner /etc/issue.net
-#     - maxstartups 10:30:60
-#   notify:
-#     - restart sshd
-#     - restart wazuh-agent
+- name: Configure sshd config
+  lineinfile:
+    path: "/etc/ssh/sshd_config"
+    line: "{{ item }}"
+  with_items:
+    - MaxAuthTries 4
+    - X11Forwarding no
+    - PermitRootLogin no
+    - PermitUserEnvironment no
+    - PermitEmptyPasswords no
+    - ClientAliveInterval 300
+    - ClientAliveCountMax 1
+    - MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+    - KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256
+    - Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+    - ClientAliveInterval 300
+    - ClientAliveCountMax 0
+    - LoginGraceTime 60
+    - Banner /etc/issue.net
+    - maxstartups 10:30:60
+    - HostbasedAuthentication no
+    - MaxSessions 10
+    - IgnoreRhosts yes
+    - AllowTcpForwarding no
+  notify:
+    - restart sshd
+    - restart wazuh-agent
 
 # - name: Configure login defs
 #   lineinfile:
