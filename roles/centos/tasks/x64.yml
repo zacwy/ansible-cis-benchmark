@@ -10,7 +10,6 @@
     name:
       # - audispd-plugins
       # - nfs-server
-      - nftables
       - ntp
     state: "latest"
   notify: restart wazuh-agent
@@ -32,14 +31,14 @@
     state: absent
   notify: restart wazuh-agent
 
-- name: Enable Services
-  systemd:
-    name: "{{ item }}"
-    state: started
-    enabled: True
-  with_items:
-    - nftables
-  notify: restart wazuh-agent
+# - name: Enable Services
+#   systemd:
+#     name: "{{ item }}"
+#     state: started
+#     enabled: True
+#   with_items:
+#     - nftables
+#   notify: restart wazuh-agent
 
 # - name: Disable unused services
 #   systemd:
@@ -119,6 +118,15 @@
     - Defaults logfile="/var/log/sudo.log"
     - Defaults use_pty
   notify: restart wazuh-agent
+
+- name: Change Sudo log file # duplicate?
+  lineinfile:
+    path: /etc/sudoers
+    line: "{{ item }}"
+  with_items:
+    - Defaults logfile="/var/log/sudo.log"
+  notify: restart wazuh-agent
+
 
 - name: Configure Postfix
   lineinfile:
@@ -364,8 +372,8 @@
     line: "{{ item }}"
   with_items:
     - ForwardToSyslog=yes
-    # - Compress=yes
-    # - Storage=persistent
+    - Compress=yes
+    - Storage=persistent
   notify: restart wazuh-agent
 
 - name: Configure sshd config
@@ -402,7 +410,7 @@
     line: "{{ item.line }}"
   with_items:
     - {regex: "^PASS_MIN_DAYS", line: "PASS_MIN_DAYS 1" }
-    # - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 365" }
+    - {regex: "^PASS_MAX_DAYS", line: "PASS_MAX_DAYS 90" }
   notify: restart wazuh-agent
 
 - name: Configure grub 
@@ -432,7 +440,7 @@
   with_items:
     - {regex: "^password sufficient pam_unix.so remember", line: "password sufficient pam_unix.so remember=5"}
     - {regex: "^password required pam_pwhistory.so remember", line: "password required pam_pwhistory.so remember=5"}
-    # - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+    - {regex: "^password requisite pam_pwquality.so try_first_pass retry", line: "password requisite pam_pwquality.so try_first_pass retry=3"}
   notify: restart wazuh-agent
 
 - name: configure pam - password auth
@@ -443,5 +451,35 @@
   with_items:
     - {regex: "^password sufficient pam_unix.so remember", line: "password sufficient pam_unix.so remember=5"}
     - {regex: "^password required pam_pwhistory.so remember", line: "password required pam_pwhistory.so remember=5"}
-    # - "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+    - {regex: "^password requisite pam_pwquality.so try_first_pass retry", line: "password requisite pam_pwquality.so try_first_pass retry=3"}
+  notify: restart wazuh-agent
+
+- name: configure pam - su
+  lineinfile:
+    path:  /etc/pam.d/su
+    line: "{{ item.line }}"
+    regex: "{{ item.regex }}"
+  with_items:
+    - {regex: "^auth required pam_wheel.so", line: "auth required pam_wheel.so use_uid"}
+  notify: restart wazuh-agent
+
+
+- name: Password Quality
+  lineinfile:
+    path:  /etc/security/pwquality.conf
+    line: "{{ item.line }}"
+    regex: "{{ item.regex }}"
+  with_items:
+    - {regex: "^minlen", line: "minlen = 14"}
+    - {regex: "^minclass", line: "minclass = 4"}
+  notify: restart wazuh-agent
+
+- name: Ensure default user shell timeout is configured
+  lineinfile:
+    path:  "{{ item }}"
+    line: "TMOUT=600"
+    regex: "^TMOUT"
+  with_items:
+    - /etc/bashrc
+    - /etc/profile
   notify: restart wazuh-agent
